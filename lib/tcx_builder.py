@@ -23,6 +23,21 @@ def getHeartRate(heartRate):
 def getCadence(cadence):
     return "{0:.0f}".format(cadence)
 
+def flattenLocationData(locationData):
+    flatData = dict()
+
+    for segment in locationData:
+        for coordinate in segment["coordinates"]:
+            flatData[coordinate["seconds_offset_from_start"]] = dict(longitude=coordinate["longitude"], latitude=coordinate["latitude"])
+
+    return flatData
+
+def convertFeetValueToMeters(feetValue):
+    try: 
+        return float(feetValue) * 0.3048
+    except:
+        return 0
+        
 def convertDistanceValueToMeters(distanceValue, distanceUnit):
     meters = 0
     if distanceUnit == "km":
@@ -44,7 +59,25 @@ def getInstructor(workout):
         if workout["ride"]["instructor"] is not None:
             return unidecode(" with " + workout["ride"]["instructor"]["name"])
     return ""
-    
+
+def getRideTitle(workout):
+    title = ""
+    try:
+        instructor = getInstructor(workout)
+        rideTitle = unidecode(workout["ride"]["title"].replace("/","-").replace(":","-"))
+        title = "{0}{1}".format(rideTitle, instructor)
+    except:
+        pass
+
+    return title
+
+def getWorkoutDescription(workout):
+    # Just Ride workouts do not have a description.
+    if workout["workout_type"] != "freestyle":
+        if workout["ride"]["description"] is not None:
+            return unidecode(workout["ride"]["description"])
+    return ""
+
 def getDistanceMeters(workoutSamples):
     try:
         distanceSlug = next((x for x in workoutSamples["summaries"] if x["slug"] == "distance"), None)
@@ -88,7 +121,7 @@ def getGarminActivityType(workout):
     except Exception as e:
         logger.error("Failed to Parse Activity Type, defaulting to 'Other' - Exception: {}".format(e))
 
-    if fitness_discipline == "cycling":
+    if fitness_discipline == "cycling" or fitness_discipline == "bike_bootcamp":
         sport = dict(Sport="Biking")
         granular_garmin_activity_type = "indoor_cycling"
     elif fitness_discipline == "running":
@@ -97,7 +130,7 @@ def getGarminActivityType(workout):
     elif fitness_discipline == "walking":
         sport = dict(Sport="Running")
         granular_garmin_activity_type = "walking"
-    elif fitness_discipline == "cardio" or fitness_discipline == "circuit":
+    elif fitness_discipline == "cardio" or fitness_discipline == "circuit" or fitness_discipline == "stretching":
         sport = dict(Sport="Other")
         granular_garmin_activity_type = "indoor_cardio"
     elif fitness_discipline == "strength":
@@ -106,12 +139,20 @@ def getGarminActivityType(workout):
     elif fitness_discipline == "yoga":
         sport = dict(Sport="Other")
         granular_garmin_activity_type = "yoga"
+    elif fitness_discipline == "meditation":
+        sport = dict(Sport="Other")
+        granular_garmin_activity_type = "breathwork"    
     else:   
         sport = dict(Sport="Other")
         granular_garmin_activity_type = "Other"
     
     return sport, granular_garmin_activity_type
 
+def getWorkoutFilename( workout, file_extension ) :
+    startTimeInSeconds = workout['start_time']
+    title = getRideTitle(workout)
+    filename = "{0}-{1}-{2}.{ext}".format(startTimeInSeconds, title, workout['id'], ext = file_extension )
+    return filename
 
 def workoutSamplesToTCX(workout, workoutSummary, workoutSamples, outputDir):
 
@@ -153,13 +194,11 @@ def workoutSamplesToTCX(workout, workoutSummary, workoutSamples, outputDir):
     triggerMethod = etree.Element("TriggerMethod")
     triggerMethod.text = "Manual"
 
-    instructor = getInstructor(workout)
-    rideTitle = unidecode(workout["ride"]["title"].replace("/","-").replace(":","-"))
-    title = "{0}{1}".format(rideTitle, instructor)
+    title = getRideTitle(workout)
 
     try:
         notes = etree.Element("Notes")
-        notes.text = "{} - {}".format(title, workout["ride"]["description"])
+        notes.text = "{} - {}".format(title, getWorkoutDescription(workout))
     except Exception as e:
         logger.error("Failed to Parse Description - Exception: {}".format(e))
 
@@ -227,10 +266,16 @@ def workoutSamplesToTCX(workout, workoutSummary, workoutSamples, outputDir):
     cadenceMetrics = []
     speedMetrics = []
     resistanceMetrics = []
+    locationData = []
+    altitudeData = []
 
     if(metrics is None):
         logger.error("No workout metrics data.") 
         return
+
+    if("location_data" in workoutSamples.keys() and len(workoutSamples["location_data"]) > 0):
+        logger.info("found location data")
+        locationData = flattenLocationData(workoutSamples["location_data"])
 
     for item in metrics:
         if item["slug"] == "heart_rate":
@@ -243,6 +288,8 @@ def workoutSamplesToTCX(workout, workoutSummary, workoutSamples, outputDir):
             speedMetrics = item
         if item["slug"] == "resistance":
             resistanceMetrics = item
+        if item["slug"] == "altitude":
+            altitudeData = item
         
     seconds_since_start = workoutSamples["seconds_since_pedaling_start"]
 
@@ -253,6 +300,30 @@ def workoutSamplesToTCX(workout, workoutSummary, workoutSamples, outputDir):
         secondsSinceStart = second
         timeInSeconds = startTimeInSeconds + secondsSinceStart
         trackTime.text = getTimeStamp(timeInSeconds)
+
+        try:
+            if locationData and index in locationData:
+                trackPosition = etree.Element("Position")
+                
+                tposLat = etree.Element("LatitudeDegrees")
+                tposLat.text = str(locationData[index]["latitude"])
+                
+                tposLon = etree.Element("LongitudeDegrees")
+                tposLon.text = str(locationData[index]["longitude"])
+                
+                tposAltitude = etree.Element("AltitudeMeters")
+                if(altitudeData["display_unit"] == "ft"):
+                    tposAltitude.text = str(convertFeetValueToMeters(altitudeData["values"][index]))
+                else:
+                    tposAltitude.text = str(altitudeData["values"][index])
+
+                trackPosition.append(tposLat)
+                trackPosition.append(tposLon)
+                trackPosition.append(tposAltitude)
+                trackPoint.append(trackPosition)
+                
+        except Exception as e:
+            logger.error("Exception: {}".format(e))
 
         try:
             if heartRateMetrics:
@@ -326,9 +397,36 @@ def workoutSamplesToTCX(workout, workoutSummary, workoutSamples, outputDir):
     root.append(activities)
     tree = etree.ElementTree(root)
 
-    
-    filename = "{0}-{1}-{2}.tcx".format(startTimeInSeconds, title, workout['id'])
+
+    #filename = "{0}-{1}-{2}.tcx".format(startTimeInSeconds, title, workout['id'])
+    filename = getWorkoutFilename( workout, "tcx" )
 
     outputDir = outputDir.replace("\"", "")
     tree.write(os.path.join(outputDir,filename), xml_declaration=True, encoding="UTF-8", method="xml")
     return title, filename, granular_garmin_activity_type
+
+
+
+def GetWorkoutSummary( workout ) :
+    # Extracts a few fields from the workout summary record for convenient access.
+    summary = {}
+
+    try:
+        summary[ "workout_type" ] = workout.get("fitness_discipline","")
+    except:
+        pass
+
+    try:
+        summary[ "workout_started" ] = ""
+        temp = workout["start_time"]
+        activity_started = datetime.fromtimestamp( temp )
+        summary[ "workout_started" ] = activity_started.strftime("%c")
+    except:
+        pass
+
+    try:
+        summary[ "workout_title" ] = getRideTitle(workout)
+    except:
+        pass
+
+    return summary

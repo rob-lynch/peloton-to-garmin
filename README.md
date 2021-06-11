@@ -1,5 +1,8 @@
 # peloton-to-garmin
 
+> First time user? Start with [P2G Version 2](https://github.com/philosowaffle/peloton-to-garmin/tree/v2). V2 has feature parity with v1 + additional new features.  If you choose to run V2, join the [discussion and post feedback](https://github.com/philosowaffle/peloton-to-garmin/discussions/77).
+
+
 #### _#PelotonToGarmin_
 
 Convert workout data from Peloton into a TCX file that can be uploaded to Garmin.
@@ -8,6 +11,9 @@ Convert workout data from Peloton into a TCX file that can be uploaded to Garmin
 * Convert Peloton workout to TCX file
 * Upload TCX workout to Garmin
 * Maintain Upload History to avoid duplicates in Garmin
+* Ensure activities are counting towards Garmin challenges and badges
+
+Have questions? Check out our [Discussion Forum](https://github.com/philosowaffle/peloton-to-garmin/discussions)!
 
 ## Table of Contents
 
@@ -16,6 +22,7 @@ Convert workout data from Peloton into a TCX file that can be uploaded to Garmin
 1. [Docker](#docker)
 1. [Configuration](#configuration)
 1. [Database](#database)
+1. [For Developers](#for-developers)
 1. [Use At Own Risk](#warnings)
 
 <a href="https://www.buymeacoffee.com/philosowaffle" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/black_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
@@ -23,6 +30,8 @@ Convert workout data from Peloton into a TCX file that can be uploaded to Garmin
 ## Windows Setup
 
 ### Quick Start
+
+> If you are planning to use the Windows exe, please consider being a beta tester for [P2G version 2](https://github.com/philosowaffle/peloton-to-garmin/tree/v2). This beta release has feature parity with v1 + additional new features.  You can find the latest v2 executable [here](https://github.com/philosowaffle/peloton-to-garmin/tree/v2/dist).  If you choose to run v2, join the [discussion and post feedback](https://github.com/philosowaffle/peloton-to-garmin/discussions/77). 
 
 1. Find the latest release [here](https://github.com/philosowaffle/peloton-to-garmin/releases)
 1. Download the file `peloton-to-garmin-windows.zip`
@@ -80,6 +89,8 @@ Convert workout data from Peloton into a TCX file that can be uploaded to Garmin
 
 ## Docker
 
+> If you are planning to use Docker, please consider being a beta tester for [P2G version 2](https://github.com/philosowaffle/peloton-to-garmin/tree/v2). This beta release has feature parity with v1 + additional new features.  If you choose to run v2, join the [discussion and post feedback](https://github.com/philosowaffle/peloton-to-garmin/discussions/77).
+
 The image can be pulled from [Docker Hub](https://hub.docker.com/r/philosowaffle/peloton-to-garmin) or [Github Packages](https://github.com/philosowaffle/peloton-to-garmin/packages). See the [Configuration](#configuration) section for a list of all environment variables that can be provided to the container.  A sample docker-compose file can be found [here](https://github.com/philosowaffle/peloton-to-garmin/blob/master/docker-compose.yaml).
 
 * `docker pull philosowaffle/peloton-to-garmin`
@@ -97,16 +108,16 @@ There are multiple ways to configure values, the precedence order is:
 |[PELOTON] Email|-email EMAIL|P2G_PELOTON_EMAIL|Peloton email address|
 |[PELOTON] Password|-password PASWORD|P2G_PELOTON_PASS| Peloton password|
 |[PELOTON] NumActivities|-num #|P2G_NUM|Batch size of activities to grab at one time|
+|[PELOTON] WorkoutTypes|-workout_types &lt;types&gt;|P2G_WORKOUT_TYPES|If set, take only Peloton workouts of the specified types (see below)
 |[GARMIN] UploadEnabled|-garmin_enable_upload true/false|P2G_GARMIN_ENABLE_UPLOAD|Automatically upload to Garmin Connect|
 |[GARMIN] Email|-garmin_email EMAIL|P2G_GARMIN_EMAIL|Garmin Email|
 |[GARMIN] Password|-garmin_password PASSWORD|P2G_GARMIN_PASS|Garmin Password|
 |[PTOG] EnablePolling|-enable_polling true/false|PTG_ENABLE_POLLING|Automatically and periodically check for new activities|
 |[PTOG] PollingIntervalSeconds|-polling_interval_seconds #|PTG_POLLING_INTERVAL_SECONDS|How frequently to poll for new activities if pollingis enabled.|
 |[OUTPUT] Directory|-path PATH|P2G_PATH|Path to output directory, this is where the TCX files are written|
-|[DEBUG] PauseOnFinish|-pause_on_finish true/false|P2G_PAUSE_ON_FINISH|Do not automatically close the application on completion.|
+|[DEBUG] PauseOnFinish|-pause_on_finish true/false|P2G_PAUSE_ON_FINISH|Do not automatically close the application on completion. For polling mode, setting to false allows continous running without user input.|
 |[LOGGER] LogFile|-log|P2G_LOG|Log file path|
 |[LOGGER] LogLevel|-loglevel|P2G_LOG_LEVEL|DEBUG, INFO, ERROR|
-
 ### Command Line Arguments
 
 Usage:  
@@ -121,6 +132,25 @@ Examples:
         * `peloton-to-garmin.py -num 10`  
   * To pass your email and passowrd:  
         * `peloton-to-garmin.py -email you@email.com -password mypassword`  
+
+### Ensure activities are counting towards Garmin challenges and badges
+To be able to have all synced activities counting towards Garmin challenges and badges, data from your Garmin hardware is needed. For getting it, please track one workout directly with your hardware (like a Garmin watch) and sync it with Garmin Connect.
+
+After done this, please export this activity as a TCX file and copy out ```<Author>...</Author>``` and ```<Creator>...</Creator>``` into ```author_info.xml``` and ```device_info.xml```.
+
+You can find samples of hwo these files are looking like at ```author_info.sample.xml``` and ```device_info.sample.xml```.
+
+### Restricting Peloton workout types
+By default, all Peloton workouts are processed.  However, you can optionally filter for only specific types of workouts, such as only cycling and running; all other workouts will be skipped.
+
+Specify a comma-separated list of workout types you want to allow.  The values may be one or more of the following: cardio, circuit, cycling, meditation, running, strength, stretching, walking, yoga
+
+Example:
+`-workout_types cardio,cycling,running,strength`
+
+Use cases:
+* You take a wide variety of Peloton classes, including meditation and yoga, but you only want to upload cycling classes.
+* You want to avoid double-counting activities you already track directly on a Garmin device, such as outdoor running workouts.
 
 ## Supported Python/OS
 
@@ -139,3 +169,14 @@ Garmin Upload feature is provided by the library: https://github.com/La0/garmin-
 ## Warnings
 
 ⚠️ WARNING!!! Your username and password for Peloton and Garmin Connect are stored in clear text, WHICH IS NOT SECURE. If you have concerns about storing your credentials in an unsecure file, do not use this option.
+
+## For Developers
+The processing of the Peloton workouts is now done in two separate steps:
+1. Downloading of workouts from Peloton.  Workouts are saved in JSON files in a working directory.
+2. Processing of all files available in the working directory.  This includes generating the TCX output file, and queuing for upload to Garmin.  Workout files are removed from the working directory.
+
+The workout files saved in step #1 can be optionally retained (not removed in step #2) and/or copied to a separate archive directory.  Additionally, you have the option to skip step #1 entirely, i.e. don't download anything from Peloton, but only use whatever files are already in the working directory.
+
+These features may be useful to developers.  You can preserve the Peloton data files for review or study, and more importantly, build up a library of workouts files.  With these files, you can more easily work on new development, without re-downloading Peloton workouts each time you run (and being dependent upon what those workouts are).  One could also share these workouts with other developers.
+
+Please refer to `configuration.py` for more information regarding these settings: `-working`, `-archive`, `-skip_download`, `-retain_files`, `-archive_files`, `-archive_by_type`
