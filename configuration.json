@@ -19,7 +19,7 @@
   "Peloton": {
     "Email": "",
     "Password": "",
-    "NumWorkoutsToDownload": 1,
+    "NumWorkoutsToDownload": 30,
     "ExcludeWorkoutTypes": [ ]
   },
 
