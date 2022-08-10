@@ -23,6 +23,7 @@ jobs:
     - name: Create device info file
       env: 
         DEVICE_INFO: ${{ secrets.DEVICE_INFO }}
+        TZ: America/New York
       if: ${{ env.DEVICE_INFO }}
       run: |
         cat <<EOT > /app/deviceInfo.xml
